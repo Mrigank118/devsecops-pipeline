@@ -1,19 +1,9 @@
 # devsecops-pipeline
 End-to-end DevSecOps pipeline integrating threat modeling, SAST, secret scanning, SCA, secure CI/CD, application testing, container security, IaC security, and DAST.
 
-
-Yes. Add a **Running the Application** section to the README now, covering the setup we have actually verified so far.
-
-I can draft it for you, but I don't have access to your local `~/Documents/GitHub/devsecops-pipeline` filesystem from this chat session, so I won't pretend I can edit the local README directly.
-
-Add this to `README.md`:
-
-````md
 ## Running the Application
 
 ### Prerequisites
-
-Make sure the following are installed:
 
 - Node.js 20+
 - npm
