@@ -1,0 +1,87 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: devsecops-postgres
+
+    environment:
+      POSTGRES_DB: ecommerce
+      POSTGRES_USER: ecommerce
+      POSTGRES_PASSWORD: ecommerce
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../server/models/tables.sql:/docker-entrypoint-initdb.d/01-tables.sql:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecommerce -d ecommerce"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+    networks:
+      - ecommerce-network
+
+
+  server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.server
+
+    container_name: devsecops-server
+
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+
+      DB_URL: postgresql://ecommerce:ecommerce@postgres:5432/ecommerce
+
+      SESSION_SECRET: local-dev-session-secret
+
+      FRONT_DOMAIN: http://localhost:3001
+      SERVER_URL: http://localhost:3000
+
+      GITHUB_CLIENT: ${GITHUB_CLIENT}
+      GITHUB_SECRET: ${GITHUB_SECRET}
+
+      STRIPE_SECRET: ${STRIPE_SECRET}
+
+    ports:
+      - "3000:3000"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - ecommerce-network
+
+
+  client:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.client
+
+      args:
+        REACT_APP_API_URL: http://localhost:3000
+        REACT_APP_ENV: development
+
+    container_name: devsecops-client
+
+    ports:
+      - "3001:80"
+
+    depends_on:
+      - server
+
+    networks:
+      - ecommerce-network
+
+
+volumes:
+  postgres_data:
+
+
+networks:
+  ecommerce-network:
+    driver: bridge
