@@ -1,0 +1,27 @@
+{
+  "version": "2.6.2",
+  "summary": {
+    "title": "Automated DevSecOps Pipeline for Secure Web Application Development",
+    "owner": "Noctis",
+    "description": "Threat model for the ecommerce web application used as the workload\nfor an automated DevSecOps security pipeline.",
+    "id": 0
+  },
+  "detail": {
+    "contributors": [],
+    "diagrams": [
+      {
+        "id": 0,
+        "title": "E-Commerce Application Threat ModelNew STRIDE diagram",
+        "diagramType": "STRIDE",
+        "placeholder": "New STRIDE diagram description",
+        "thumbnail": "./public/content/images/thumbnail.stride.jpg",
+        "version": "2.6.2",
+        "cells": [],
+        "description": "STRIDE threat model for the ecommerce web application, covering the React client, Express/Node.js API, PostgreSQL database, GitHub OAuth, and Stripe payment integration."
+      }
+    ],
+    "diagramTop": 1,
+    "reviewer": "Noctis",
+    "threatTop": 0
+  }
+}
