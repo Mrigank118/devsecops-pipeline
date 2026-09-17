@@ -90,3 +90,23 @@ jobs:
       - name: Audit server dependencies
         working-directory: server
         run: npm audit --audit-level=high
+
+  
+  # -------------------------
+  # SCA - Snyk
+  # -------------------------
+  snyk:
+    name: Snyk Dependency Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Run Snyk
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          command: test
+          args: --all-projects --severity-threshold=high
