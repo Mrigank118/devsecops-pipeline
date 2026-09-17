@@ -67,3 +67,26 @@ jobs:
 
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
+
+
+  # -------------------------
+  # SCA - npm audit
+  # -------------------------
+  npm-audit:
+    name: npm Dependency Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Audit root dependencies
+        run: npm audit --audit-level=high
+
+      - name: Audit client dependencies
+        working-directory: client
+        run: npm audit --audit-level=high
+
+      - name: Audit server dependencies
+        working-directory: server
+        run: npm audit --audit-level=high
