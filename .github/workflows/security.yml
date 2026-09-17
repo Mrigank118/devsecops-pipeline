@@ -7,10 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:    
+permissions:
   contents: read
   security-events: write
-
 
 jobs:
 
@@ -40,6 +39,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c
+        with:
+          egress-policy: audit
+
       - name: Checkout repository
         uses: actions/checkout@v6
 
@@ -51,7 +55,7 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
 
-  
+
   # -------------------------
   # Secret Scanning - Gitleaks
   # -------------------------
@@ -60,6 +64,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c
+        with:
+          egress-policy: audit
+
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
@@ -77,6 +86,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c
+        with:
+          egress-policy: audit
+
       - name: Checkout repository
         uses: actions/checkout@v6
 
@@ -91,7 +105,7 @@ jobs:
         working-directory: server
         run: npm audit --audit-level=high
 
-  
+
   # -------------------------
   # SCA - Snyk
   # -------------------------
@@ -100,6 +114,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c
+        with:
+          egress-policy: audit
+
       - name: Checkout repository
         uses: actions/checkout@v6
 
