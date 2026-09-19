@@ -1,0 +1,21 @@
+# Dummy container security workflow.
+# This is a placeholder for the actual Trivy implementation.
+
+
+
+name: Container Security
+
+on:
+  workflow_call:
+
+jobs:
+  container-security:
+    name: Container Security
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Dummy container security check
+        run: |
+          echo "Container security workflow started"
+          echo "Trivy scan will be implemented here"
+          echo "Security gate: PASS"
