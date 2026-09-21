@@ -47,7 +47,7 @@ function Home() {
                 <div className="absolute inset-0 bg-gradient-to-r from-mainOrange/40 via-mainTeal/40 to-mainOrange/40 blur-3xl opacity-80 animate-rotateGradient-slow"></div>
 
                 <div className="relative z-10 flex flex-col justify-center md:justify-evenly items-start gap-6 max-w-2xl md:mx-10">
-                    <p className="text-neutral-600 text-sm md:text-base drop-shadow-lg">TRENDY COLLECTION 🔥</p>
+                    <p className="text-neutral-600 text-sm md:text-base drop-shadow-lg">TRENDY COLLECTION</p>
                     <h1 className="text-4xl lg:text-6xl font-semibold text-900 drop-shadow-2xl leading-tight">
                         Make Your 
                         <span className="text-mainOrange drop-shadow-2xl"> Interior </span> 
