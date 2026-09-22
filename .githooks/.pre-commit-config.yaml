@@ -25,12 +25,13 @@ repos:
   # ------------------------------------------------------------
   # 1. SECRET DETECTION - GITLEAKS
   # ------------------------------------------------------------
-  - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.28.0
+  - repo: local
     hooks:
-      - id: gitleaks
+      - id: gitleaks-staged
         name: "[1/2] Secret Detection - Gitleaks"
-
+        entry: gitleaks protect --staged --verbose --config .gitleaks.toml
+        language: system
+        pass_filenames: false
   # ------------------------------------------------------------
   # 2. STATIC APPLICATION SECURITY TESTING - SEMGREP
   # ------------------------------------------------------------
