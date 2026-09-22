@@ -1,0 +1,15 @@
+rules:
+  - id: demo-dangerous-eval
+    languages:
+      - javascript
+    message: "Security violation: user-controlled input is passed to eval()."
+    severity: ERROR
+    pattern: eval(...)
+
+  - id: demo-sql-injection
+    languages:
+      - javascript
+    message: "Security violation: user-controlled input is concatenated into an SQL query."
+    severity: ERROR
+    pattern: $DB.query("..." + $INPUT + "...")
+
