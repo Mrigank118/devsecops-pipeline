@@ -24,6 +24,7 @@ import { createCheckoutSession, getCheckoutStatus, handleStripeWebhook } from ".
 // Express Config
 dotenv.config();
 const app = express();
+app.disable("x-powered-by");
 const PORT = process.env.PORT || 3000;
 const stripe = process.env.STRIPE_SECRET ? stripeLib(process.env.STRIPE_SECRET) : null;
 const FRONT_DOMAIN =
@@ -53,6 +54,17 @@ const corsOptions = {
 };
 
 app.set("trust proxy", 1); // Trust first proxy
+
+// API responses are dynamic and should not be cached. This restrictive policy
+// also applies to Express-generated errors and not-found responses.
+app.use((_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'none'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'none'"
+  );
+  next();
+});
 
 // Apply CORS configuration
 app.use(cors(corsOptions));
@@ -174,6 +186,11 @@ app.use("/api/cart", isAuthenticated, cartRouter);
 app.use("/api/orders", isAuthenticated, orderRouter);
 app.post("/api/cart/checkout", isAuthenticated, createCheckoutSession(stripe));
 app.get("/api/cart/checkout-status/:session_id", isAuthenticated, getCheckoutStatus);
+
+// Return API-style 404s so unmatched paths retain the security headers above.
+app.use((req, res) => {
+  res.status(404).json({ message: "Not found" });
+});
 
 // Error handling
 app.use((err, req, res, next) => {
