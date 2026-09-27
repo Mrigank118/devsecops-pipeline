@@ -1,0 +1,47 @@
+name: DAST
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zap-baseline:
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: ci-local-db-password-7a92e4f6
+      SESSION_SECRET: ci-local-session-secret-7a92e4f6
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Start application stack
+        run: docker compose -f docker/docker-compose.yml up --build -d
+      - name: Wait for application
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:3000/api/products >/dev/null && curl --fail --silent http://localhost:3001/ >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose -f docker/docker-compose.yml logs
+          exit 1
+      - name: Run API security smoke checks
+        run: ./scripts/security/smoke-api.sh http://localhost:3000
+      - name: Test authenticated cart API
+        run: ./scripts/security/test-cart-api.sh http://localhost:3000
+      - name: Run checkout integration tests
+        run: docker compose -f docker/docker-compose.yml exec -T server npm test
+      - name: Scan API with OWASP ZAP
+        run: ./scripts/security/run-dast.sh http://localhost:3000
+      - name: Scan client with OWASP ZAP
+        run: ./scripts/security/run-dast.sh http://localhost:3001
+      - name: Show application logs on failure
+        if: failure()
+        run: docker compose -f docker/docker-compose.yml logs
+      - name: Stop application stack
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down -v

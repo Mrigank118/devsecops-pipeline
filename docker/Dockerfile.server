@@ -1,12 +1,16 @@
 FROM node:20-alpine
 
 WORKDIR /app
+ENV NODE_ENV=production PORT=3000
 
-COPY server/package*.json ./
+RUN chown node:node /app
+USER node
+
+COPY --chown=node:node server/package*.json ./
 
 RUN npm ci --omit=dev
 
-COPY server/ ./
+COPY --chown=node:node server/ ./
 
 EXPOSE 3000
 

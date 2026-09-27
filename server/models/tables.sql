@@ -13,7 +13,7 @@ CREATE TABLE Users (
 -- Addresses table
 CREATE TABLE Addresses (
     id SERIAL PRIMARY KEY,
-    user_id INT REFERENCES Users(id) ON DELETE CASCADE,
+    user_id INT NOT NULL REFERENCES Users(id) ON DELETE CASCADE,
     address_line1 VARCHAR(255),
     address_line2 VARCHAR(255),
     city VARCHAR(100),
@@ -55,6 +55,8 @@ CREATE TABLE Cart (
     quantity INT NOT NULL CHECK (quantity > 0)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS cart_user_product_unique ON cart (user_id, product_id);
+
 -- Orders table
 CREATE TABLE Orders (
     id SERIAL PRIMARY KEY,
@@ -77,12 +79,22 @@ CREATE TABLE OrderItems (
 -- Checkouts table
 CREATE TABLE Checkouts (
     id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES Users(id) ON DELETE CASCADE,
     order_id INT REFERENCES Orders(id) ON DELETE CASCADE,
+    stripe_session_id VARCHAR(255),
     amount NUMERIC(10, 2) NOT NULL,
     checkout_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(50) CHECK (status IN ('completed', 'failed', 'pending')) DEFAULT 'pending',
     method VARCHAR(50)
 );
+
+-- Retain compatibility when this schema is applied to an existing database.
+ALTER TABLE checkouts ALTER COLUMN order_id DROP NOT NULL;
+ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS user_id INT REFERENCES users(id) ON DELETE CASCADE;
+UPDATE checkouts c SET user_id = o.user_id
+FROM orders o WHERE c.order_id = o.id AND c.user_id IS NULL;
+ALTER TABLE checkouts ADD COLUMN IF NOT EXISTS stripe_session_id VARCHAR(255);
+CREATE UNIQUE INDEX IF NOT EXISTS checkouts_stripe_session_unique ON checkouts (stripe_session_id);
 
 
 -- You can use this data for testing purposes

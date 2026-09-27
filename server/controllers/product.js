@@ -13,7 +13,7 @@ const getProducts = async (req, res) => {
         const { rows } = await pool.query(query)
         res.status(200).json({ data: rows })
     } catch (error) {
-        res.status(500).json({ message: 'Error retrieving all products', error })
+        res.status(500).json({ message: 'Error retrieving all products' })
     }
 }
 
@@ -31,7 +31,7 @@ const getProduct = async (req, res) => {
         const { rows } = await pool.query(query, [id])
         res.status(200).json({ data: rows[0] })
     } catch (error) {
-        res.status(404).json({ message: 'Product not found with this Id', error })
+        res.status(500).json({ message: 'Error retrieving product' })
     }
 }
 
@@ -49,7 +49,7 @@ const latestProducts = async (req, res) => {
         const { rows } = await pool.query(query)
         res.status(200).json({ data: rows })
     } catch (error) {
-        res.status(404).json({ message: 'Error retrieving latest products', error })
+        res.status(500).json({ message: 'Error retrieving latest products' })
     }
 }
 
@@ -73,7 +73,7 @@ const getRelatedProducts = async (req, res) => {
         const { rows } = await pool.query(query, [name]);
         res.status(200).json({ data: rows });
     } catch (error) {
-        res.status(404).json({ message: 'Error retrieving related products', error });
+        res.status(500).json({ message: 'Error retrieving related products' });
     }
 };
 
@@ -108,7 +108,7 @@ const getProductsByCategory = async (req, res) => {
         const { rows } = await pool.query(query, queryParams)
         res.status(200).json({ data: rows });
     } catch (error) {
-        res.status(404).json({ message: 'Category not found', error })
+        res.status(500).json({ message: 'Error retrieving products by category' })
     }
 }
 

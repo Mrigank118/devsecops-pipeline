@@ -10,7 +10,7 @@
     "start:server": "cd server && npm run dev",
     "start:client": "cd client && npm run start",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "npm install --prefix server && npm install --prefix client && npm run build --prefix client"
+    "build": "npm run build --workspace=client"
   },
   "dependencies": {
     "concurrently": "^9.1.0"

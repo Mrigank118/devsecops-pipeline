@@ -12,7 +12,8 @@ const getOrders = async (req, res) => {
         const { rows } = await pool.query('SELECT * FROM orders WHERE user_id = $1', [user_id])
         res.status(200).json({ data: rows })
     } catch (error) {
-        res.status(500).json({ message: 'Error while retrieving orders', error })
+        console.error('Order retrieval failed:', error.message)
+        res.status(500).json({ message: 'Error while retrieving orders' })
     }
 }
 
@@ -38,13 +39,14 @@ const getOrderDetails = async (req, res) => {
                 products AS p
             ON 
                 o.product_id = p.id
-            WHERE 
-                o.order_id = $1
+            JOIN orders AS ord ON ord.id = o.order_id
+            WHERE o.order_id = $1 AND ord.user_id = $2
         `
-        const { rows } = await pool.query(query, [order_id])
+        const { rows } = await pool.query(query, [order_id, req.user.id])
         res.status(200).json({ data: rows })
     } catch (error) {
-        res.status(500).json({ message: 'Error while retrieving order details', error })
+        console.error('Order detail retrieval failed:', error.message)
+        res.status(500).json({ message: 'Error while retrieving order details' })
     }
 }
 

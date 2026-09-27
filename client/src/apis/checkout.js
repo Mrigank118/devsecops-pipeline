@@ -1,15 +1,15 @@
-const url = process.env.REACT_APP_API_URL;
+const url = process.env.REACT_APP_API_URL || "http://localhost:3000";
 
 
 // Initiate checkout session
-export const checkout = async (cartItems) => {
+export const checkout = async () => {
     try {
-        const response = await fetch(`${url}/create-checkout-session`, {
+        const response = await fetch(`${url}/api/cart/checkout`, {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ cartItems }),
         });
         const result = await response.json()
 
@@ -24,25 +24,12 @@ export const checkout = async (cartItems) => {
     }
 }
 
-// Place order after successful checkout
-export const placeOrder = async () => {
-    try {
-        const response = await fetch(`${url}/api/cart/checkout`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
-        const result = await response.json()
-
-        if (response.ok) {
-            return { success: true, message: result.message }
-        } else {
-            return { success: false, message: result.message || 'Order placement failed.' }
-        }
-    } catch (error) {
-        return { success: false, message: 'Error placing order', error }
-    }
+export const fetchCheckoutStatus = async (sessionId) => {
+    const response = await fetch(`${url}/api/cart/checkout-status/${encodeURIComponent(sessionId)}`, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || 'Unable to verify checkout status');
+    return result;
 }
-

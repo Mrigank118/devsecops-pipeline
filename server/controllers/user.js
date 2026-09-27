@@ -5,27 +5,21 @@ import { hashPassword, verifyPassword } from "../utils/hash.js";
 // Helper functions for users
 // Finding a user by email
 const findUserByEmail = async (email) => {
-    try {
-        const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email])
-        return rows[0]
-    } catch (error) {
-        return { message: 'Error finding user.', error }
-    }
+    const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email])
+    return rows[0]
 };
 
 // Finding a user by ID
 const findUserById = async (id) => {
-    try {
-        const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [id])
-        return rows[0]
-    } catch (error) {
-        return { message: 'Error finding user.', error }
-    }
+    const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [id])
+    return rows[0]
 };
 
 // Inserting
 const insertUser = async (full_name, email, hash_password = null, salt = null) => {
+    const client = await pool.connect()
     try {
+        await client.query('BEGIN')
         // First, insert into the users table and retrieve the new user's ID
         const userQuery = `
             INSERT INTO users (full_name, email, hash_password, salt)
@@ -33,12 +27,13 @@ const insertUser = async (full_name, email, hash_password = null, salt = null) =
             ON CONFLICT (email) DO NOTHING
             RETURNING id;
         `
-        const userResult = await pool.query(userQuery, [full_name, email, hash_password, salt]);
+        const userResult = await client.query(userQuery, [full_name, email, hash_password, salt]);
 
         // Check if the user was successfully inserted
         const user = userResult.rows[0];
         if (!user) {
-            return { message: 'User already exists.' };
+            await client.query('ROLLBACK')
+            return null;
         }
 
         // Now, insert a corresponding address row with the new user's ID
@@ -47,9 +42,14 @@ const insertUser = async (full_name, email, hash_password = null, salt = null) =
             VALUES ($1)
             RETURNING *;
         `;
-        await pool.query(addressQuery, [user.id]);
+        await client.query(addressQuery, [user.id]);
+        await client.query('COMMIT')
+        return { id: user.id, full_name, email }
     } catch (error) {
-        return { message: 'Error inserting user and address.', error };
+        await client.query('ROLLBACK')
+        throw error
+    } finally {
+        client.release()
     }
 }
 
@@ -57,10 +57,11 @@ const insertUser = async (full_name, email, hash_password = null, salt = null) =
 // Retrieving all users (Admin Privilege)
 const getUsers = async (req, res) => {
     try {
-        const { rows } = await pool.query('SELECT * FROM users ORDER BY created_at DESC')
+        const { rows } = await pool.query(
+            'SELECT id, full_name, email, phone_number, created_at, updated_at FROM users ORDER BY created_at DESC')
         res.status(200).json({ data: rows })
     } catch (error) {
-        res.status(500).json({ error: 'Error retrieving users', error })
+        res.status(500).json({ error: 'Error retrieving users' })
     }
 }
 
@@ -73,10 +74,12 @@ const getCurrentUser = async (req, res) => {
     
     const id = req.user.id
     try {
-        const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [id])
+        const { rows } = await pool.query(
+            'SELECT id, full_name, email, phone_number, created_at, updated_at FROM users WHERE id = $1', [id])
         res.status(200).json({ success: true, data: rows[0] })
     } catch (error) {
-        res.status(404).json({ success: false, message: 'User not found with this Id', error })
+        console.error('Current user lookup failed:', error.message)
+        res.status(500).json({ success: false, message: 'Unable to retrieve user' })
     }
 }
 
@@ -91,7 +94,8 @@ const getAddressforCurrentUser = async (req, res) => {
         const { rows } = await pool.query('SELECT * FROM addresses WHERE user_id = $1', [user_id])
         return res.status(200).json({ success: true, address: rows[0] })
     } catch (error) {
-        res.status(404).json({ success: false, message: 'Address not found for this user', error })
+        console.error('Address lookup failed:', error.message)
+        res.status(500).json({ success: false, message: 'Unable to retrieve address' })
     }
 }
 
@@ -118,12 +122,24 @@ const updateUser = async (req, res) => {
     if (phone_number) updateFields.phone_number = phone_number
 
     // Handle password update
-    if (old_password && new_password && confirm_new_password) {
+    const passwordFieldsSupplied = Boolean(old_password || new_password || confirm_new_password)
+    if (passwordFieldsSupplied && !(old_password && new_password && confirm_new_password)) {
+        return res.status(400).json({ error: 'Provide the old password, new password, and confirmation together.' })
+    }
+    if (passwordFieldsSupplied) {
         if (new_password !== confirm_new_password) {
             return res.status(400).json({ error: 'New password and confirmation must match.' })
         }
         
-        const isMatch = await verifyPassword(old_password, req.user.hash_password, req.user.salt)
+        if (!req.user.hash_password || !req.user.salt) {
+            return res.status(400).json({ error: 'This account cannot change its password here.' })
+        }
+        let isMatch = false
+        try {
+            isMatch = await verifyPassword(old_password, req.user.hash_password, req.user.salt)
+        } catch {
+            return res.status(400).json({ error: 'Incorrect old password.' })
+        }
         if (!isMatch) {
             return res.status(400).json({ error: 'Incorrect old password.' })
         }
@@ -142,12 +158,15 @@ const updateUser = async (req, res) => {
             UPDATE users
             SET ${setClause}
             WHERE id = $${fields.length + 1}
-            RETURNING *;
+            RETURNING id, full_name, email, phone_number, created_at, updated_at;
         `
+        if (!fields.length) return res.status(400).json({ success: false, message: 'No profile fields supplied' })
         const { rows } = await pool.query(query, [...values, req.user.id])
+        if (!rows[0]) return res.status(404).json({ success: false, message: 'User not found' })
         res.status(200).json({ success: true, message: 'Profile updated successfully!', data: rows[0] })
     } catch (error) {
-        res.status(500).json({ success: false, message: "Error updating user's profile", error })
+        console.error('User profile update failed:', error.message)
+        res.status(500).json({ success: false, message: "Unable to update profile" })
     }
 }
 
@@ -186,10 +205,12 @@ const updateAddress = async (req, res) => {
             WHERE user_id = $${fields.length + 1}
             RETURNING *;
         `
+        if (!fields.length) return res.status(400).json({ success: false, message: 'No address fields supplied' })
         const { rows } = await pool.query(query, [...values, req.user.id])
         res.status(200).json({ success: true, message: 'Profile updated successfully!', data: rows[0] })
     } catch (error) {
-        res.status(500).json({ success: false, message: "Error updating user's address", error })
+        console.error('Address update failed:', error.message)
+        res.status(500).json({ success: false, message: "Unable to update address" })
     }
 }
 

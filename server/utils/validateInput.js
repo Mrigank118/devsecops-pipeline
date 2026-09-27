@@ -18,7 +18,7 @@ export const inputValidation = [
 
     // Password - At least 8 characters, one uppercase letter, one lowercase letter, one number, and one special character
     body('password')
-        .isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
+        .isLength({ min: 8, max: 1024 }).withMessage('Password must be between 8 and 1024 characters long')
         .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
         .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
         .matches(/[0-9]/).withMessage('Password must contain at least one number')
@@ -32,6 +32,7 @@ export const inputValidation = [
 
 // Validate update inputs middleware
 export const validateUpdateUser = [
+    body('old_password').optional().isString().withMessage('Old password must be text.'),
     body('full_name')
         .optional()
         .isLength({ min: 4 })
@@ -46,6 +47,7 @@ export const validateUpdateUser = [
         .withMessage('Enter a valid phone number.'),
     body('new_password')
         .optional()
+        .isLength({ max: 1024 })
         .isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 1 })
         .withMessage('Password must be strong with uppercase, lowercase, number, and special character.'),
     body('confirm_new_password')

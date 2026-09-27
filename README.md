@@ -74,16 +74,19 @@ The application is containerized using Docker and Docker Compose.
 | ------------------- | -------------------------------------------- |
 | Threat Modeling     | OWASP Threat Dragon                          |
 | SAST                | Semgrep, CodeQL                              |
-| Secret Scanning     | Gitleaks, GitHub Secret Scanning             |
-| SCA                 | Snyk, npm audit, Dependabot                  |
+| Secret Scanning     | Gitleaks; optional GitHub repository feature  |
+| SCA                 | npm audit, Dependabot; optional Snyk          |
 | Pre-Commit Security | pre-commit, Gitleaks, Semgrep                |
 | CI/CD Security      | GitHub Actions, StepSecurity, OSSF Scorecard |
-| Application Testing | Jest, Supertest, Newman                      |
-| Container Security  | Trivy                                        |
+| Application Build   | npm workspaces                               |
+| API Smoke Checks    | curl-based auth, ownership, and CSRF checks   |
+| Container Security  | Trivy (HIGH/CRITICAL gate)                    |
 | IaC Security        | Terraform, Checkov                           |
 | DAST                | OWASP ZAP                                    |
-| API Security        | Newman, OWASP ZAP                            |
-| Finding Management  | DefectDojo                                   |
+| API Security        | OWASP ZAP baseline against the running API    |
+| Finding Management  | GitHub code scanning and workflow results    |
+
+Snyk runs only when repository variable `ENABLE_SNYK=true` and secret `SNYK_TOKEN` are configured. Jest/Supertest/Newman test suites and DefectDojo integration are not included in this checkout.
 
 ## Repository Structure
 
@@ -95,30 +98,20 @@ devsecops-pipeline/
 │   ├── workflows/
 │   │   ├── ci.yml
 │   │   ├── security.yml
-│   │   ├── container.yml
+│   │   ├── container-security.yml
 │   │   ├── infrastructure.yml
 │   │   ├── dast.yml
 │   │   ├── scorecard.yml
 │   │   └── dependabot.yml
 │   └── dependabot.yml
 ├── .githooks/
-├── security/
-│   ├── sast/
-│   ├── secret-scanning/
-│   ├── sca/
-│   ├── container/
-│   ├── iac/
-│   └── dast/
 ├── threat-model/
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── security/
+├── scripts/
+│   ├── security/
+│   └── setup/
 ├── docker/
 ├── terraform/
-├── scripts/
 ├── docs/
-├── reports/
 ├── package.json
 ├── package-lock.json
 ├── .gitleaks.toml
@@ -179,7 +172,7 @@ Two complementary static-analysis tools are used:
 * Data-flow and control-flow analysis
 * Integrated with GitHub code scanning
 
-Both are executed automatically through GitHub Actions.
+Both run automatically through GitHub Actions. Semgrep findings fail the workflow.
 
 ### 4. Secret Scanning
 
@@ -194,10 +187,9 @@ The objective is to prevent credentials, tokens, API keys, and other sensitive v
 Third-party dependencies are checked using:
 
 * **npm audit**
-* **Snyk**
 * **Dependabot**
 
-Snyk and npm audit identify known dependency vulnerabilities, while Dependabot provides automated dependency update pull requests.
+`npm audit` blocks high and critical known dependency advisories. Snyk is optional; Dependabot opens dependency update pull requests.
 
 ### 6. CI/CD Security
 
@@ -219,19 +211,19 @@ This extends security beyond the application itself to the software delivery inf
 
 Docker images are scanned using **Trivy**.
 
-The container security stage checks container images for known vulnerabilities and security issues before deployment.
+The reusable container workflow builds both images and fails on unfixed HIGH or CRITICAL vulnerabilities. Docker publishing depends on this gate, and pull requests run the image scan without publishing.
 
 ### 8. Infrastructure-as-Code Security
 
 Infrastructure is represented using **Terraform**.
 
-**Checkov** analyzes Terraform configuration for insecure or non-compliant configuration patterns.
+**Checkov** analyzes the example AWS configuration for insecure settings. Terraform defines a private, encrypted, versioned S3 bucket for scanner report artifacts and a separate SSE-S3 bucket for its access logs. CI validates configuration; it does not deploy cloud resources or upload reports.
 
 This allows infrastructure security issues to be detected before infrastructure is deployed.
 
 ### 9. Dynamic Application Security Testing
 
-**OWASP ZAP** is used to perform DAST against the running application.
+The DAST workflow starts an ephemeral Docker Compose stack, runs API smoke checks for public/protected route behavior and cross-origin rejection, then runs **OWASP ZAP** baseline scans against the client and API.
 
 Unlike SAST, which examines source code, DAST interacts with the deployed application from an external perspective.
 
@@ -251,18 +243,11 @@ DAST
 
 ### 10. API Security
 
-API endpoints are tested using:
-
-* Newman
-* OWASP ZAP
-
-Newman executes automated Postman collections, while ZAP provides dynamic security testing of exposed application endpoints.
+The ZAP baseline scan covers routes exposed by the running API. There is no Newman collection or authenticated API test suite in this checkout.
 
 ### 11. Finding Management
 
-**DefectDojo** is used as a centralized vulnerability and finding management platform.
-
-It can aggregate findings from multiple security tools, including:
+GitHub Actions retains scan logs and publishes CodeQL findings to code scanning. DefectDojo is not configured. A future integration could aggregate reports from tools such as:
 
 ```text
 Semgrep
@@ -273,13 +258,10 @@ Checkov
 OWASP ZAP
        │
        ▼
-   DefectDojo
-       │
-       ▼
-Findings → Tracking → Remediation
+GitHub code scanning and workflow results
 ```
 
-DefectDojo is a **finding-management platform**, not a replacement for the individual scanners.
+Finding management complements the individual scanners; it does not replace them.
 
 ## Running the Application
 
@@ -292,13 +274,13 @@ DefectDojo is a **finding-management platform**, not a replacement for the indiv
 
 ### Local development
 
-Install dependencies:
+Run the setup helper to install lockfile-pinned dependencies and, when available, install the pre-commit hooks:
 
 ```bash
-npm install
+./scripts/setup/setup-dev.sh
 ```
 
-Start the application:
+For direct Node development, provide `DB_URL` and `SESSION_SECRET`, initialize PostgreSQL with `server/models/tables.sql`, and start the application:
 
 ```bash
 npm start
@@ -308,7 +290,18 @@ The frontend and backend run according to the configured application settings.
 
 ### Docker Compose
 
-The complete application stack can be started using:
+Create a local `.env` with fresh credentials and keep it out of Git:
+
+```bash
+{
+  printf 'POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 24)"
+  printf 'SESSION_SECRET=%s\n' "$(openssl rand -hex 32)"
+} > .env
+```
+
+For Stripe checkout, also set `STRIPE_SECRET` and `STRIPE_WEBHOOK_SECRET`. Configure Stripe to send `checkout.session.completed` to `https://<api-host>/api/stripe/webhook`. For local checkout, use Stripe CLI to forward events to `localhost:3000/api/stripe/webhook`. GitHub OAuth is optional; when enabled, set `GITHUB_CLIENT`, `GITHUB_SECRET`, and backend callback URL in `GITHUB_CALLBACK_URL`.
+
+Start the complete application stack:
 
 ```bash
 docker compose --env-file .env -f docker/docker-compose.yml up --build
@@ -320,6 +313,21 @@ The application exposes:
 Frontend: http://localhost:3001
 Backend:  http://localhost:3000
 ```
+
+The database volume persists between runs. To reset local data, run `docker compose -f docker/docker-compose.yml down -v`.
+
+If you already have a database volume from the older checkout/order schema, apply the migration once after starting PostgreSQL:
+
+```bash
+docker compose -f docker/docker-compose.yml exec -T postgres \
+  psql -U ecommerce -d ecommerce < server/models/migrations/001-secure-checkout.sql
+```
+
+### Deployment configuration
+
+The production API requires `DB_URL`, `SESSION_SECRET`, and `FRONT_DOMAIN`. Set `NODE_ENV=production` and serve the API over HTTPS. Add `STRIPE_SECRET` and `STRIPE_WEBHOOK_SECRET` for payments; GitHub OAuth additionally needs `GITHUB_CLIENT`, `GITHUB_SECRET`, and `GITHUB_CALLBACK_URL` (or `SERVER_URL`). The client image embeds `REACT_APP_API_URL` at build time. Docker publishing uses repository secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`; set repository variable `REACT_APP_API_URL` when the API is not at the documented default.
+
+The Terraform workflow only validates and scans. To provision the example S3 report buckets manually, configure AWS credentials and run `terraform -chdir=terraform init` followed by `terraform -chdir=terraform plan -var='bucket_name=<globally-unique-name>'`. Review the plan before applying. CI does not run `apply` or upload scan reports to those buckets.
 
 ## Pre-Commit Security
 
@@ -335,7 +343,7 @@ Run all configured checks:
 pre-commit run --all-files
 ```
 
-Expected result:
+The configured Gitleaks and Semgrep hooks should complete without findings:
 
 ```text
 Detect hardcoded secrets................................Passed
@@ -353,7 +361,7 @@ ci.yml
 security.yml
     → SAST + Secret Scanning + SCA
 
-container.yml
+container-security.yml
     → Container Security
 
 infrastructure.yml
@@ -366,7 +374,7 @@ scorecard.yml
     → Software Supply Chain Security
 ```
 
-This separation keeps each security stage independently understandable and maintainable.
+`security.yml` runs Semgrep, CodeQL, Gitleaks, and npm audit. Container scans gate image publication; DAST starts the application stack; Infrastructure Security validates Terraform and runs Checkov. These workflows do not run unit/integration tests, publish to DefectDojo, or deploy Terraform.
 
 ## Security Gates
 
@@ -415,13 +423,13 @@ The project demonstrates:
 
 * Security requirements derived from threat modeling.
 * Shift-left security through pre-commit checks.
-* Automated SAST and SCA.
+* Automated SAST and SCA with blocking findings.
 * Automated secret detection.
 * CI/CD supply-chain security.
 * Container vulnerability scanning.
 * Infrastructure configuration analysis.
 * Dynamic application and API security testing.
-* Centralized vulnerability management.
+* GitHub code scanning and workflow-based finding review.
 * Automated security gates through CI/CD.
 
 ## License

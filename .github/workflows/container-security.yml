@@ -1,21 +1,39 @@
-# Dummy container security workflow.
-# This is a placeholder for the actual Trivy implementation.
-
-
-
 name: Container Security
 
 on:
   workflow_call:
 
-jobs:
-  container-security:
-    name: Container Security
-    runs-on: ubuntu-latest
+permissions:
+  contents: read
 
+jobs:
+  scan-images:
+    name: Build and scan application images
+    runs-on: ubuntu-latest
     steps:
-      - name: Dummy container security check
-        run: |
-          echo "Container security workflow started"
-          echo "Trivy scan will be implemented here"
-          echo "Security gate: PASS"
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build server image
+        run: docker build -f docker/Dockerfile.server -t devsecops-server:${{ github.sha }} .
+
+      - name: Scan server image
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: devsecops-server:${{ github.sha }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Build client image
+        run: docker build -f docker/Dockerfile.client --build-arg REACT_APP_API_URL=https://api.example.invalid -t devsecops-client:${{ github.sha }} .
+
+      - name: Scan client image
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: devsecops-client:${{ github.sha }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'

@@ -29,7 +29,8 @@ const registerUser = async (req, res, next) => {
     const { salt, hash } = await hashPassword(password);
 
     // Insert user
-    await insertUser(full_name, email, hash, salt);
+    const user = await insertUser(full_name, email, hash, salt);
+    if (!user) return res.status(409).json({ error: "An account with that email already exists." });
 
     // Return success message
     res.status(201).json({ message: "Registration successful" });
@@ -57,14 +58,13 @@ const loginUser = (req, res, next) => {
         return res.status(500).json({ message: "Login failed." });
       }
 
-      // For debugging cookie issues in production
-      console.log("Session ID at login:", req.sessionID);
-      console.log("Is authenticated:", req.isAuthenticated());
-
-      // Send a successful response with the user object
+      // Never serialize credential material into an API response.
       return res
         .status(200)
-        .json({ message: "You logged in successfully", user }); // Send the user object on success
+        .json({
+          message: "You logged in successfully",
+          user: { id: user.id, full_name: user.full_name, email: user.email },
+        });
     });
   })(req, res, next);
 };
@@ -81,17 +81,20 @@ const isAuthenticated = (req, res, next) => {
 const logoutUser = (req, res, next) => {
   req.logOut((err) => {
     if (err) return next(err);
-    res.status(200).json({ message: "You logged out successfully" });
+    req.session.destroy((sessionError) => {
+      if (sessionError) return next(sessionError);
+      res.clearCookie("connect.sid", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      });
+      res.status(200).json({ message: "You logged out successfully" });
+    });
   });
 };
 
 // Get Authentication Status
 const getAuthStatus = (req, res) => {
-  // Log debugging information
-  console.log("Session ID at status check:", req.sessionID);
-  console.log("Session:", req.session);
-  console.log("Is authenticated:", req.isAuthenticated());
-
   if (req.isAuthenticated()) {
     res.status(200).json({
       isAuthenticated: true,

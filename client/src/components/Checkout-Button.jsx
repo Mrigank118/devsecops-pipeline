@@ -1,5 +1,5 @@
 import { toast } from "sonner"
-import { checkout, placeOrder } from "../apis/checkout"
+import { checkout } from "../apis/checkout"
 import { useAuth } from "../hooks/authContext"
 import { clearCartInLocalStorage } from "../utils/cartStorage"
 
@@ -9,22 +9,17 @@ export const Checkout = ({ checkoutItems }) => {
     const handleCheckout = async (e) => {
         e.preventDefault()
 
-        // Initiate checkout session
-        const checkoutRes = await checkout(checkoutItems)
+        if (!isAuthenticated) {
+            toast.error('Please log in before checking out.')
+            return
+        }
+        const checkoutRes = await checkout()
 
         if (!checkoutRes.ok) {
-            toast.error('Something went wrong during checkout!')
+            toast.error(checkoutRes.message || 'Something went wrong during checkout!')
             return
         }
-
-        if (isAuthenticated) {
-            await placeOrder()
-            return
-        } else {
-            // Final success message only after placing order is successful
-            toast.success('Order placed! You will receive an email confirmation.')
-            clearCartInLocalStorage()
-        }
+        clearCartInLocalStorage()
     };
 
     return (

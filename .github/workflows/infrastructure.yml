@@ -1,0 +1,40 @@
+name: Infrastructure Security
+
+on:
+  push:
+    branches: [main]
+    paths: ['terraform/**', '.github/workflows/infrastructure.yml']
+  pull_request:
+    branches: [main]
+    paths: ['terraform/**', '.github/workflows/infrastructure.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - name: Check formatting
+        run: terraform fmt -check -recursive terraform
+      - name: Initialize Terraform without a backend
+        working-directory: terraform
+        run: terraform init -backend=false
+      - name: Validate Terraform
+        working-directory: terraform
+        run: terraform validate
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Install pinned Checkov scanner
+        run: python -m pip install --disable-pip-version-check checkov==3.3.8
+      - name: Checkov IaC scan
+        run: checkov --directory terraform --framework terraform --quiet

@@ -1,8 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 
-const url = process.env.REACT_APP_API_URL;
-
-console.log(url);
+const url = process.env.REACT_APP_API_URL || "http://localhost:3000";
 
 const AuthContext = createContext();
 
@@ -22,7 +20,6 @@ export const AuthProvider = ({ children }) => {
         },
       });
       const data = await response.json();
-      console.log(data.isAuthenticated);
       setIsAuthenticated(data.isAuthenticated);
       setLoading(false);
     } catch (error) {

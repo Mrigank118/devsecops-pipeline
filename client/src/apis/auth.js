@@ -1,5 +1,5 @@
 // Define the API URL with fallback to production URL
-const url = process.env.REACT_APP_API_URL || "https://studio-chairs.vercel.app";
+const url = process.env.REACT_APP_API_URL || "http://localhost:3000";
 
 export const registerUser = async (userObj) => {
   try {
@@ -50,7 +50,7 @@ export const loginUser = async (credentials) => {
 export const logoutUser = async () => {
   try {
     const response = await fetch(`${url}/api/auth/logout`, {
-      method: "GET",
+      method: "POST",
       credentials: "include",
     });
 

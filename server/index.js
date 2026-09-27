@@ -1,15 +1,13 @@
 import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
-import bodyParser from "body-parser";
 import passport from "passport";
 import { Strategy as GitHubStrategy } from "passport-github2";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "./models/index.js";
 import stripeLib from "stripe";
-import path from "path";
-import { fileURLToPath } from "url";
+import crypto from "crypto";
 
 // Controllers
 import { isAuthenticated } from "./controllers/auth.js";
@@ -21,21 +19,34 @@ import { userRouter } from "./routes/user.route.js";
 import { productRouter } from "./routes/product.route.js";
 import { cartRouter } from "./routes/cart.route.js";
 import { orderRouter } from "./routes/order.route.js";
+import { createCheckoutSession, getCheckoutStatus, handleStripeWebhook } from "./controllers/checkout.js";
 
 // Express Config
 dotenv.config();
 const app = express();
-const PORT = process.env.PORT || 5000;
-const stripe = stripeLib(process.env.STRIPE_SECRET); // Initialize Stripe with your secret key
+const PORT = process.env.PORT || 3000;
+const stripe = process.env.STRIPE_SECRET ? stripeLib(process.env.STRIPE_SECRET) : null;
 const FRONT_DOMAIN =
-  process.env.FRONT_DOMAIN || "https://studio-chairs.vercel.app";
+  process.env.FRONT_DOMAIN || "http://localhost:3001";
+const FRONT_ORIGIN = new URL(FRONT_DOMAIN).origin;
+const hasGitHubOAuth = Boolean(process.env.GITHUB_CLIENT && process.env.GITHUB_SECRET);
+if (!process.env.SESSION_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("SESSION_SECRET must be configured in production");
+}
+if (process.env.NODE_ENV === "production" && !process.env.DB_URL) {
+  throw new Error("DB_URL must be configured in production");
+}
+if (process.env.NODE_ENV === "production" && !process.env.FRONT_DOMAIN) {
+  throw new Error("FRONT_DOMAIN must be configured in production");
+}
+if (process.env.NODE_ENV === "production" && hasGitHubOAuth &&
+    !process.env.GITHUB_CALLBACK_URL && !process.env.SERVER_URL) {
+  throw new Error("Set GITHUB_CALLBACK_URL or SERVER_URL when GitHub OAuth is enabled");
+}
 
 // Dynamically set the origin based on the environment
 const corsOptions = {
-  origin:
-    process.env.NODE_ENV === "production"
-      ? "https://studio-chairs.vercel.app"
-      : "http://localhost:3001",
+  origin: FRONT_ORIGIN,
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -59,44 +70,43 @@ app.use(
       pool, // Connect to PostgreSQL
       createTableIfMissing: true, // Automatically create the session table
     }),
-    secret: process.env.SESSION_SECRET,
+    secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex"),
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production", // Use HTTPS in production
       maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     },
   })
 );
 
 app.use(passport.initialize());
 app.use(passport.session());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), handleStripeWebhook(stripe));
+app.use(express.json({ limit: "100kb" }));
+app.use(express.urlencoded({ extended: true, limit: "100kb" }));
 
 // GitHub Authentication 2.0 Strategy
 // Config GitHubStrategy
-passport.use(
+if (hasGitHubOAuth) passport.use(
   new GitHubStrategy(
     {
       clientID: process.env.GITHUB_CLIENT,
       clientSecret: process.env.GITHUB_SECRET,
-      callbackURL:
-        process.env.NODE_ENV === "production"
-          ? "https://studio-chairs.vercel.app/auth/github/callback"
-          : "http://localhost:3000/auth/github/callback", // Changed to relative URL that points to our backend
+      callbackURL: process.env.GITHUB_CALLBACK_URL || `${new URL(process.env.SERVER_URL || "http://localhost:3000").origin}/auth/github/callback`,
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
         // Check if user already exists
-        const email = profile.emails[0].value;
+        const email = profile.emails?.find((entry) => entry.primary && entry.verified)?.value;
+        if (!email) return done(new Error("GitHub did not provide a verified email"));
         let user = await findUserByEmail(email);
 
         if (!user) {
           // Insert new GitHub user without password and salt
-          user = await insertUser(profile.displayName, email);
+          user = await insertUser(profile.displayName || profile.username, email);
         }
         done(null, user);
       } catch (error) {
@@ -108,7 +118,24 @@ passport.use(
 
 // Allow referrer info for HTTPS→HTTPS requests
 app.use((req, res, next) => {
-  res.setHeader("Referrer-Policy", "no-referrer-when-downgrade");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
+
+// Reject browser form/fetch requests from other origins on state-changing API routes.
+app.use("/api", (req, res, next) => {
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) {
+    const origin = req.get("origin");
+    if (origin && origin !== FRONT_ORIGIN) {
+      return res.status(403).json({ message: "Cross-origin request rejected" });
+    }
+  }
   next();
 });
 
@@ -123,56 +150,21 @@ app.get("/", (req, res) => {
 // GitHub endpoints
 app.get(
   "/auth/github",
-  passport.authenticate("github", { scope: ["user:email"] })
+  (req, res, next) => hasGitHubOAuth
+    ? passport.authenticate("github", { scope: ["user:email"] })(req, res, next)
+    : res.status(503).send("GitHub sign-in is not configured")
 );
 
 app.get(
   "/auth/github/callback",
-  passport.authenticate("github", { failureRedirect: `${FRONT_DOMAIN}/login` }),
+  (req, res, next) => hasGitHubOAuth
+    ? passport.authenticate("github", { failureRedirect: `${FRONT_DOMAIN}/login` })(req, res, next)
+    : res.status(503).send("GitHub sign-in is not configured"),
   (req, res) => {
     // Successful authentication, redirect to frontend home page
     res.redirect(`${FRONT_DOMAIN}/?status=success`);
   }
 );
-
-// Stripe endpoint
-app.post("/create-checkout-session", async (req, res) => {
-  try {
-    const { cartItems } = req.body;
-
-    // Fetch product details, including stripe_price_id, from the database
-    const productsQuery = `
-            SELECT id, stripe_price_id 
-            FROM products 
-            WHERE id = ANY($1)
-        `;
-    const { rows: products } = await pool.query(productsQuery, [
-      cartItems.map((item) => item.id),
-    ]);
-
-    // Create line items for Stripe Checkout
-    const lineItems = cartItems.map((item) => {
-      const product = products.find((p) => p.id === item.id);
-      return {
-        price: product.stripe_price_id, // Use the price_id from the database
-        quantity: item.quantity,
-      };
-    });
-
-    const session = await stripe.checkout.sessions.create({
-      line_items: lineItems,
-      mode: "payment",
-      success_url: `${FRONT_DOMAIN}/order-success?success=true`,
-      cancel_url: `${FRONT_DOMAIN}?canceled=true`,
-    });
-
-    // Respond with the session URL for the client to redirect
-    res.json({ url: session.url });
-  } catch (error) {
-    console.error("Error creating checkout session:", error);
-    res.status(500).json({ error: "Failed to create checkout session" });
-  }
-});
 
 // APIs endpoint
 app.use("/api/auth", authRouter);
@@ -180,21 +172,8 @@ app.use("/api/users", isAuthenticated, userRouter);
 app.use("/api/products", productRouter);
 app.use("/api/cart", isAuthenticated, cartRouter);
 app.use("/api/orders", isAuthenticated, orderRouter);
-
-const isProduction = process.env.NODE_ENV === "production";
-
-if (isProduction) {
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-
-  // Serve static files from React app
-  app.use(express.static(path.join(__dirname, "../client/build")));
-
-  // Handle React routing, return all requests to React app
-  app.get("/*", (req, res) => {
-    res.sendFile(path.join(__dirname, "../client/build", "index.html"));
-  });
-}
+app.post("/api/cart/checkout", isAuthenticated, createCheckoutSession(stripe));
+app.get("/api/cart/checkout-status/:session_id", isAuthenticated, getCheckoutStatus);
 
 // Error handling
 app.use((err, req, res, next) => {
