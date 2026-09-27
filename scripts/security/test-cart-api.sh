@@ -26,16 +26,18 @@ TEST_ID="$(date +%s)-$$"
 EMAIL="ci-cart-${TEST_ID}@example.test"
 PASSWORD="CiCart-${TEST_ID}!"
 ORIGIN=${FRONT_ORIGIN:-http://localhost:3001}
+REGISTER_PAYLOAD=$(python3 -c 'import json,sys; print(json.dumps({"full_name":"CI Cart Test","email":sys.argv[1],"password":sys.argv[2],"confirm_password":sys.argv[2]}))' "$EMAIL" "$PASSWORD")
+LOGIN_PAYLOAD=$(python3 -c 'import json,sys; print(json.dumps({"email":sys.argv[1],"password":sys.argv[2]}))' "$EMAIL" "$PASSWORD")
 
 status=$(request_status --request POST --header "Origin: $ORIGIN" \
   --header 'Content-Type: application/json' --cookie-jar "$COOKIE_JAR" \
-  --data "$(printf '{\"full_name\":\"CI Cart Test\",\"email\":\"%s\",\"password\":\"%s\",\"confirm_password\":\"%s\"}' "$EMAIL" "$PASSWORD" "$PASSWORD")" \
+  --data "$REGISTER_PAYLOAD" \
   "$BASE_URL/api/auth/register")
 assert_status 201 "$status" 'Register test user'
 
 status=$(request_status --request POST --header "Origin: $ORIGIN" \
   --header 'Content-Type: application/json' --cookie "$COOKIE_JAR" --cookie-jar "$COOKIE_JAR" \
-  --data "$(printf '{\"email\":\"%s\",\"password\":\"%s\"}' "$EMAIL" "$PASSWORD")" \
+  --data "$LOGIN_PAYLOAD" \
   "$BASE_URL/api/auth/login")
 assert_status 200 "$status" 'Log in test user'
 
