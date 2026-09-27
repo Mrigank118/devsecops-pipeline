@@ -5,6 +5,7 @@ if [ -z "$TARGET" ]; then echo "Usage: $0 <target-url> (or set DAST_TARGET_URL)"
 command -v docker >/dev/null 2>&1 || { echo "Docker is required to run the OWASP ZAP container" >&2; exit 127; }
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 exec docker run --rm --network host \
-  --volume "$SCRIPT_DIR/zap-baseline.conf:/zap/wrk/zap-baseline.conf:ro" \
+  --tmpfs /zap/wrk:rw,exec,mode=1777 \
+  --volume "$SCRIPT_DIR/zap-baseline.conf:/tmp/zap-baseline.conf:ro" \
   -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
-  -t "$TARGET" -c /zap/wrk/zap-baseline.conf
+  -t "$TARGET" -c /tmp/zap-baseline.conf
