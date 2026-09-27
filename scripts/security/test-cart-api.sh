@@ -25,7 +25,7 @@ request_status() {
 TEST_ID="$(date +%s)-$$"
 EMAIL="ci-cart-${TEST_ID}@example.test"
 PASSWORD="CiCart-${TEST_ID}!"
-ORIGIN='http://localhost:3001'
+ORIGIN=${FRONT_ORIGIN:-http://localhost:3001}
 
 status=$(request_status --request POST --header "Origin: $ORIGIN" \
   --header 'Content-Type: application/json' --cookie-jar "$COOKIE_JAR" \

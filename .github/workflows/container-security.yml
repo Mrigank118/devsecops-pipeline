@@ -18,7 +18,7 @@ jobs:
         run: docker build -f docker/Dockerfile.server -t devsecops-server:${{ github.sha }} .
 
       - name: Scan server image
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: devsecops-server:${{ github.sha }}
           scanners: vuln
@@ -30,7 +30,7 @@ jobs:
         run: docker build -f docker/Dockerfile.client --build-arg REACT_APP_API_URL=https://api.example.invalid -t devsecops-client:${{ github.sha }} .
 
       - name: Scan client image
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: devsecops-client:${{ github.sha }}
           scanners: vuln

@@ -34,7 +34,7 @@ jobs:
       - name: Test authenticated cart API
         run: ./scripts/security/test-cart-api.sh http://localhost:3000
       - name: Run checkout integration tests
-        run: docker compose -f docker/docker-compose.yml exec -T server npm test
+        run: docker compose -f docker/docker-compose.yml exec -T server node --test
       - name: Scan API with OWASP ZAP
         run: ./scripts/security/run-dast.sh http://localhost:3000
       - name: Scan client with OWASP ZAP

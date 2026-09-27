@@ -14,5 +14,13 @@
   },
   "dependencies": {
     "concurrently": "^9.1.0"
+  },
+  "overrides": {
+    "@tootallnate/once": "2.0.1",
+    "nth-check": "^2.1.1",
+    "postcss": "^8.5.23",
+    "serialize-javascript": "^7.0.5",
+    "underscore": "^1.13.8",
+    "svgo": "^2.8.4"
   }
 }

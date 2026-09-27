@@ -1,4 +1,6 @@
 resource "aws_s3_bucket" "security_findings" {
+  #checkov:skip=CKV_AWS_144:Cross-region recovery needs an account-approved destination region and bucket outside this example.
+  #checkov:skip=CKV2_AWS_62:No event-driven consumer is defined for this example report bucket.
   bucket = var.bucket_name
 }
 
@@ -64,6 +66,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "security_findings" {
     id     = "expire-old-reports"
     status = "Enabled"
     filter {}
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
     expiration {
       days = 365
     }
@@ -73,8 +78,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "security_findings" {
   }
 }
 
-#checkov:skip=CKV_AWS_18:This bucket is the access-log destination and must not log recursively to itself.
 resource "aws_s3_bucket" "access_logs" {
+  #checkov:skip=CKV_AWS_18:This bucket is the access-log destination and must not log recursively to itself.
+  #checkov:skip=CKV_AWS_144:Access logs use a same-region destination; a separate recovery region is outside this example.
+  #checkov:skip=CKV_AWS_145:S3 server access log delivery to an S3 destination supports SSE-S3, not SSE-KMS.
+  #checkov:skip=CKV2_AWS_62:Log delivery is storage-only; no event-driven consumer is defined.
   bucket = "${var.bucket_name}-access-logs"
 }
 
@@ -117,13 +125,13 @@ resource "aws_s3_bucket_policy" "access_logs" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "AllowS3ServerAccessLogs"
-        Effect    = "Allow"
+        Sid    = "AllowS3ServerAccessLogs"
+        Effect = "Allow"
         Principal = {
           Service = "logging.s3.amazonaws.com"
         }
-        Action    = "s3:PutObject"
-        Resource  = "${aws_s3_bucket.access_logs.arn}/security-findings/*"
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.access_logs.arn}/security-findings/*"
         Condition = {
           StringEquals = {
             "aws:SourceAccount" = data.aws_caller_identity.current.account_id
@@ -158,6 +166,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
     id     = "expire-access-logs"
     status = "Enabled"
     filter {}
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
     expiration {
       days = 365
     }
