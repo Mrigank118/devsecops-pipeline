@@ -43,7 +43,8 @@ repos:
         pass_filenames: false
         args:
           - "--config"
-          - "auto"
+          - ".semgrep/security.yml"
+          - "--error"
           - "-j"
           - "1"
 

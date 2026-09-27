@@ -1,0 +1,11 @@
+title = "DevSecOps Project Gitleaks Configuration"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "demo-github-token"
+description = "Demo GitHub token for DevSecOps security testing"
+regex = '''ghp_[0-9A-Za-z]{36}'''
+secretGroup = 0
+keywords = ["ghp_"]

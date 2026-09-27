@@ -1,0 +1,8 @@
+rules:
+  - id: dangerous-eval
+    languages:
+      - javascript
+    message: "Avoid eval() because it can execute attacker-controlled JavaScript."
+    severity: ERROR
+    pattern: eval(...)
+
