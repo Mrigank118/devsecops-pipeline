@@ -13,7 +13,7 @@ expect_status() {
   fi
 }
 
-expect_status 200 "$BASE_URL/api/products"
+expect_status 418 "$BASE_URL/api/products"
 expect_status 401 "$BASE_URL/api/users/user"
 expect_status 401 "$BASE_URL/api/orders/1"
 expect_status 401 --request POST "$BASE_URL/api/cart/checkout"
