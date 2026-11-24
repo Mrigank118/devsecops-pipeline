@@ -1,3 +1,4 @@
+import "./components/DemoMissingModule";
 import { Outlet } from "react-router-dom";
 import { Navbar } from "./components/Nav-Bar";
 import { Toaster } from 'sonner';
