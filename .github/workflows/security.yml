@@ -2,6 +2,9 @@ name: Security Scans
 
 on:
   workflow_call:
+    secrets:
+      SNYK_TOKEN:
+        required: false
 
 permissions:
   contents: read
