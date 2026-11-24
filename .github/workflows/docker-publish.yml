@@ -20,7 +20,8 @@ jobs:
   security:
     name: Security scans
     uses: ./.github/workflows/security.yml
-    secrets: inherit
+    secrets:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
   dast:
     name: API checks and DAST
