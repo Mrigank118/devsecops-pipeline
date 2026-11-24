@@ -9,15 +9,44 @@ on:
 
 permissions:
   contents: read
+  security-events: write
+  id-token: write
 
 jobs:
+  ci:
+    name: CI build
+    uses: ./.github/workflows/ci.yml
+
+  security:
+    name: Security scans
+    uses: ./.github/workflows/security.yml
+    secrets: inherit
+
+  dast:
+    name: API checks and DAST
+    uses: ./.github/workflows/dast.yml
+
+  infrastructure:
+    name: Terraform and Checkov
+    uses: ./.github/workflows/infrastructure.yml
+
+  scorecard:
+    name: OSSF Scorecard
+    uses: ./.github/workflows/scorecard.yml
+
   container-security:
     name: Container Security Gate
     uses: ./.github/workflows/container-security.yml
 
   publish:
     name: Build and Publish Docker Images
-    needs: container-security
+    needs:
+      - ci
+      - security
+      - dast
+      - infrastructure
+      - scorecard
+      - container-security
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
     env:

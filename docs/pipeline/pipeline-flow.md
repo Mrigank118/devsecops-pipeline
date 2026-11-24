@@ -2,16 +2,13 @@
 
 ```text
 Commit / pull request
-  ├─ Build client
-  ├─ Semgrep + CodeQL
-  ├─ Gitleaks
-  ├─ npm audit (high and critical gate)
-  ├─ Build both container images → Trivy gate
-  ├─ Terraform fmt / validate → Checkov gate
-  └─ Start Docker Compose → API smoke checks → OWASP ZAP baseline (client and API)
-
-Main branch container publication
-  └─ Wait for container scan → build and push images
+  ├─ CI build
+  ├─ Security scans: Semgrep + CodeQL + Gitleaks + npm audit (+ optional Snyk)
+  ├─ Docker Compose → API smoke checks → OWASP ZAP baseline
+  ├─ Terraform fmt / validate → Checkov
+  ├─ OSSF Scorecard
+  └─ Build both images → Trivy scan
+       └─ All gates pass + main push/manual run → build and push Docker images
 ```
 
-Dependabot proposes dependency updates. OSSF Scorecard runs separately on its configured schedule and main-branch updates. GitHub Actions is the workflow result store; CodeQL alerts are sent to GitHub code scanning. The repository does not currently run an application test suite, deploy Terraform, or integrate DefectDojo.
+The Docker Build and Publish workflow is the orchestrator: each check is a reusable workflow job, and image publishing waits for every gate. Pull requests run the full DAG but skip publishing. Dependabot proposes dependency updates, and OSSF Scorecard also runs on its configured weekly schedule. GitHub Actions is the workflow result store; CodeQL and Scorecard findings are sent to GitHub code scanning. Terraform is validated, not deployed; the repository does not integrate DefectDojo.
