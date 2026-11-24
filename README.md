@@ -189,7 +189,7 @@ Third-party dependencies are checked using:
 * **npm audit**
 * **Dependabot**
 
-`npm audit` blocks high and critical known dependency advisories. Snyk is optional; Dependabot opens dependency update pull requests.
+`npm audit --omit=dev` blocks high and critical advisories in production dependencies. Frontend build tooling is development-only and is not shipped in the client image. Snyk is optional; Dependabot opens dependency update pull requests.
 
 ### 6. CI/CD Security
 

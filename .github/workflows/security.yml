@@ -102,15 +102,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Audit root dependencies
-        run: npm audit --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Audit client dependencies
         working-directory: client
-        run: npm audit --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Audit server dependencies
         working-directory: server
-        run: npm audit --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
 
 
   # -------------------------
